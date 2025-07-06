@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebScraper Extension</title>
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="header">
+        <h1>🕷️ WebScraper Extension</h1>
+    </div>
+
+    <button class="main-button" id="scrapeButton">
+        Realizar Leitura
+    </button>
+
+    <div class="result-section">
+        <div class="result-label">Resultado do Scraping:</div>
+        <textarea 
+            class="result-textarea" 
+            id="resultTextarea" 
+            placeholder="O conteúdo extraído da página aparecerá aqui..."
+            readonly
+        ></textarea>
+        <div class="char-count" id="charCount">0 caracteres</div>
+    </div>
+
+    <div class="action-buttons">
+        <button class="action-button" id="analysisButton" disabled>
+            📊 Análise
+        </button>
+        <button class="action-button" id="processButton" disabled>
+            ⚙️ Processo
+        </button>
+    </div>
+
+    <div class="status hidden" id="statusDiv"></div>
+
+    <script src="index.js"></script>
+</body>
+</html>

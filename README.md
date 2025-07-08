@@ -63,6 +63,7 @@ webscraper-extension/
    - Crie a pasta `icons/`
    - Adicione ícones nos tamanhos: 16px, 32px, 48px, 128px
    - Use formato PNG para melhor compatibilidade
+   - Ou comente a linha 22 a 27 e 30 a 35 do `manifest.json` para ocultar os icones 
 
 3. **Carregue no Chrome**
    - Abra `chrome://extensions/`
@@ -155,6 +156,7 @@ app.post('api/feed/agent/processo', (req, res) => {
 app.listen(8000, () => {
   console.log('Backend rodando em http://localhost:8000');
 });
+```
 
 ## 🧠 Como Funciona
 

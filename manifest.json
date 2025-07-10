@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "WebScraper Extension",
+  "name": "Legaltech Extension",
   "version": "1.0.0",
-  "description": "Extensão para fazer webscraping da página atual e enviar para backend de análise e processamento",
-  "author": "Desenvolvedor",
+  "description": "Legaltech Extension",
+  "author": "Legaltech",
   
   "permissions": [
     "activeTab",
@@ -18,7 +18,7 @@
   
   "action": {
     "default_popup": "index.html",
-    "default_title": "WebScraper Extension"
+    "default_title": "Legaltech Extension"
   },
   
   "background": {

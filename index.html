@@ -26,12 +26,17 @@
         <div class="char-count" id="charCount">0 caracteres</div>
     </div>
 
-    <div class="action-buttons">
-        <button class="action-button" id="analysisButton" disabled>
-            📊 Análise
-        </button>
-        <button class="action-button" id="processButton" disabled>
-            ⚙️ Processo
+    <div class="action-section">
+        <div class="select-container">
+            <label for="agentSelect" class="select-label">Selecione o Agente:</label>
+            <select id="agentSelect" class="agent-select" disabled>
+                <option value="">Escolha uma opção</option>
+                <option value="1">Trabalhista</option>
+                <option value="2">Cível</option>
+            </select>
+        </div>
+        <button class="send-button" id="sendButton" disabled>
+            🚀 Enviar para Processamento
         </button>
     </div>
 

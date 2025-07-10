@@ -1,3 +1,11 @@
+const CONFIG = {
+  // Configurações do Backend
+  backend: {
+    baseUrl: 'http://localhost:8000/api',
+  }
+}
+
+
 // Função de extração de conteúdo que será injetada na página
 function extractPageContent() {
     // Função que será executada no contexto da página
@@ -116,19 +124,25 @@ class WebScraperExtension {
     constructor() {
         this.scrapeButton = document.getElementById('scrapeButton');
         this.resultTextarea = document.getElementById('resultTextarea');
-        this.analysisButton = document.getElementById('analysisButton');
-        this.processButton = document.getElementById('processButton');
+        this.agentSelect = document.getElementById('agentSelect');
+        this.sendButton = document.getElementById('sendButton');
         this.statusDiv = document.getElementById('statusDiv');
         this.charCount = document.getElementById('charCount');
+        
+        // Mapeamento dos agentes
+        this.agents = {
+            '1': { id: 1, name: 'trabalhista', displayName: 'Trabalhista' },
+            '2': { id: 2, name: 'civel', displayName: 'Cível' }
+        };
         
         this.initializeEventListeners();
     }
 
     initializeEventListeners() {
         this.scrapeButton.addEventListener('click', () => this.performScraping());
-        this.analysisButton.addEventListener('click', () => this.sendToBackend('analise'));
-        this.processButton.addEventListener('click', () => this.sendToBackend('processo'));
+        this.sendButton.addEventListener('click', () => this.sendToBackend());
         this.resultTextarea.addEventListener('input', () => this.updateCharCount());
+        this.agentSelect.addEventListener('change', () => this.enableActionButtons());
     }
 
     async performScraping() {
@@ -173,7 +187,7 @@ class WebScraperExtension {
         }
     }
 
-    async sendToBackend(agent) {
+    async sendToBackend() {
         const content = this.resultTextarea.value.trim();
         
         if (!content) {
@@ -181,16 +195,15 @@ class WebScraperExtension {
             return;
         }
 
-        const buttonText = agent === 'analise' ? 'Análise' : 'Processo';
-        this.showStatus('loading', `<span class="spinner"></span>Enviando para ${buttonText}...`);
+        const agent = Object.entries(this.agents)
+            .filter(([key, value]) => key === this.agentSelect.value)
+            .map(([key, value]) => value)[0];
         
-        // Desabilitar botões durante o envio
-        this.analysisButton.disabled = true;
-        this.processButton.disabled = true;
+        this.showStatus('loading', `<span class="spinner"></span>Enviando...`);
 
         try {
             // URL do backend
-            const backendUrl = `http://localhost:8000/api/feed/agent/${agent}`;
+            const backendUrl = `${CONFIG.backend.baseUrl}/feed/agent/${agent.id}`;
             
             const payload = {
                 content: content,
@@ -211,8 +224,7 @@ class WebScraperExtension {
 
             if (response.ok) {
                 const responseData = await response.json();
-                this.showStatus('success', `✅ Conteúdo enviado para ${buttonText} com sucesso!`);
-                console.log('Resposta do backend:', responseData);
+                this.showStatus('sent', `✅ Conteúdo enviado para ${agent.name} com sucesso!`);
             } else {
                 const errorText = await response.text();
                 throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
@@ -233,8 +245,8 @@ class WebScraperExtension {
 
     enableActionButtons() {
         const hasContent = this.resultTextarea.value.trim().length > 0;
-        this.analysisButton.disabled = !hasContent;
-        this.processButton.disabled = !hasContent;
+        this.agentSelect.disabled = !hasContent;
+        this.sendButton.disabled = !this.agentSelect.value;
     }
 
     updateCharCount() {
@@ -254,16 +266,20 @@ class WebScraperExtension {
                 if (this.statusDiv.classList.contains('success')) {
                     this.statusDiv.classList.add('hidden');
                 }
-            }, 3000);
+            }, 5000);
         }
-    }
 
-    // Método para limpar resultado
-    clearResult() {
-        this.resultTextarea.value = '';
-        this.updateCharCount();
-        this.statusDiv.classList.add('hidden');
-        this.resultTextarea.setAttribute('readonly', 'readonly');
+        if (type === 'sent') {
+            this.resultTextarea.setAttribute('readonly', 'readonly');
+            this.resultTextarea.value = '';
+            this.updateCharCount();
+            setTimeout(() => {
+                if (this.statusDiv.classList.contains('sent')) {
+                    console.log('Conteúdo enviado com sucesso!');
+                    this.statusDiv.classList.add('hidden');
+                }
+            }, 5000);
+        }
     }
 }
 

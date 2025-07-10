@@ -90,38 +90,86 @@ body {
     box-shadow: 0 0 0 3px oklch(0.208 0.042 265.755 / 0.1);
 }
 
-.action-buttons {
-    display: flex;
-    gap: 12px;
+.action-section {
     margin-top: 15px;
 }
 
-.action-button {
-    flex: 1;
-    padding: 10px 16px;
+.select-container {
+    margin-bottom: 15px;
+}
+
+.select-label {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: oklch(0.208 0.042 265.755);
+}
+
+.agent-select {
+    width: 100%;
+    padding: 10px 12px;
     border: 2px solid oklch(0.208 0.042 265.755);
     border-radius: 6px;
     background: oklch(0.984 0.003 247.858);
     color: oklch(0.208 0.042 265.755);
-    font-size: 13px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23354271' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 40px;
+}
+
+.agent-select:focus {
+    outline: none;
+    border-color: oklch(0.18 0.045 265.755);
+    box-shadow: 0 0 0 3px oklch(0.208 0.042 265.755 / 0.1);
+}
+
+.agent-select:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background-color: oklch(0.95 0.002 265.755);
+}
+
+.agent-select option {
+    padding: 8px;
+    background: oklch(0.984 0.003 247.858);
+    color: oklch(0.208 0.042 265.755);
+}
+
+.send-button {
+    width: 100%;
+    padding: 12px 20px;
+    border: 2px solid oklch(0.208 0.042 265.755);
+    border-radius: 6px;
+    background: oklch(0.984 0.003 247.858);
+    color: oklch(0.208 0.042 265.755);
+    font-size: 14px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
 }
 
-.action-button:hover {
+.send-button:hover:not(:disabled) {
     background: oklch(0.208 0.042 265.755);
     color: oklch(0.984 0.003 247.858);
     transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-.action-button:active {
+.send-button:active {
     transform: translateY(0);
 }
 
-.action-button:disabled {
+.send-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
@@ -142,7 +190,7 @@ body {
     border: 1px solid oklch(0.7 0.05 60);
 }
 
-.status.success {
+.status.success, .status.sent{
     background: oklch(0.85 0.02 120);
     color: oklch(0.3 0.08 120);
     border: 1px solid oklch(0.6 0.05 120);

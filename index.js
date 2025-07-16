@@ -1,7 +1,7 @@
 const CONFIG = {
   // Configurações do Backend
   backend: {
-    baseUrl: 'http://localhost:8000/api',
+    baseUrl: 'https://app.juridtech.com.br/api/admin/agents/feed/extension',
   }
 }
 
@@ -11,13 +11,13 @@ function extractPageContent() {
     // Função que será executada no contexto da página
     const removeUnwantedElements = () => {
         const unwantedSelectors = [
-            'script', 'style', 'nav', 'header', 'footer', 
+            'script', 'style', 'nav', 'header', 'footer',
             '.advertisement', '.ads', '.popup', '.modal',
             '[role="banner"]', '[role="navigation"]', '[role="complementary"]',
             '.cookie-banner', '.newsletter-signup', '.social-share',
             '.comments-section', '.sidebar', '.related-posts'
         ];
-        
+
         unwantedSelectors.forEach(selector => {
             document.querySelectorAll(selector).forEach(el => {
                 el.style.display = 'none'; // Ocultar em vez de remover
@@ -27,11 +27,11 @@ function extractPageContent() {
 
     const extractTextContent = () => {
         const contentSelectors = [
-            'main', 'article', '.content', '.main-content', 
+            'main', 'article', '.content', '.main-content',
             '.post-content', '.entry-content', '#content',
             '.article-body', '.post-body', '.text-content'
         ];
-        
+
         // Tentar encontrar container principal de conteúdo
         for (const selector of contentSelectors) {
             const element = document.querySelector(selector);
@@ -39,16 +39,16 @@ function extractPageContent() {
                 return element.innerText.trim();
             }
         }
-        
+
         // Fallback: extrair do body, mas filtrar melhor
         const bodyText = document.body.innerText || document.body.textContent || '';
-        
+
         // Limpar texto repetitivo e ruído
         const lines = bodyText.split('\n')
             .map(line => line.trim())
             .filter(line => line.length > 3) // Remover linhas muito curtas
             .filter((line, index, arr) => arr.indexOf(line) === index); // Remover duplicatas
-        
+
         return lines.join('\n');
     };
 
@@ -75,7 +75,7 @@ function extractPageContent() {
             // Tentar extrair dados estruturados (Schema.org)
             const scripts = document.querySelectorAll('script[type="application/ld+json"]');
             const structuredData = [];
-            
+
             scripts.forEach(script => {
                 try {
                     const data = JSON.parse(script.textContent);
@@ -84,7 +84,7 @@ function extractPageContent() {
                     // Ignorar scripts JSON inválidos
                 }
             });
-            
+
             return structuredData.length > 0 ? JSON.stringify(structuredData, null, 2) : '';
         } catch (error) {
             return '';
@@ -93,12 +93,12 @@ function extractPageContent() {
 
     // Remover elementos indesejados
     removeUnwantedElements();
-    
+
     // Extrair conteúdo
     const textContent = extractTextContent();
     const metadata = extractMetadata();
     const structuredData = extractStructuredData();
-    
+
     // Formar resultado estruturado
     let result = `=== METADADOS ===
 Título: ${metadata.title}
@@ -128,13 +128,13 @@ class WebScraperExtension {
         this.sendButton = document.getElementById('sendButton');
         this.statusDiv = document.getElementById('statusDiv');
         this.charCount = document.getElementById('charCount');
-        
+
         // Mapeamento dos agentes
         this.agents = {
             '1': { id: 1, name: 'trabalhista', displayName: 'Trabalhista' },
             '2': { id: 2, name: 'civel', displayName: 'Cível' }
         };
-        
+
         this.initializeEventListeners();
     }
 
@@ -148,7 +148,7 @@ class WebScraperExtension {
     async performScraping() {
         this.showStatus('loading', '<span class="spinner"></span>Extraindo conteúdo da página...');
         this.scrapeButton.disabled = true;
-        
+
         try {
             // Verificar se estamos no contexto correto
             if (typeof chrome === 'undefined' || !chrome.tabs) {
@@ -157,7 +157,7 @@ class WebScraperExtension {
 
             // Obter a aba ativa
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            
+
             if (!tab) {
                 throw new Error('Nenhuma aba ativa encontrada.');
             }
@@ -169,7 +169,7 @@ class WebScraperExtension {
             });
 
             const scrapedContent = results[0].result;
-            
+
             if (scrapedContent && scrapedContent.trim()) {
                 this.resultTextarea.value = scrapedContent;
                 this.resultTextarea.removeAttribute('readonly');
@@ -189,7 +189,7 @@ class WebScraperExtension {
 
     async sendToBackend() {
         const content = this.resultTextarea.value.trim();
-        
+
         if (!content) {
             this.showStatus('error', '❌ Nenhum conteúdo para enviar!');
             return;
@@ -198,18 +198,26 @@ class WebScraperExtension {
         const agent = Object.entries(this.agents)
             .filter(([key, value]) => key === this.agentSelect.value)
             .map(([key, value]) => value)[0];
-        
+
+        if (!agent) {
+            this.showStatus('error', '❌ Selecione um agente válido!');
+            return;
+        }
+
         this.showStatus('loading', `<span class="spinner"></span>Enviando...`);
 
         try {
             // URL do backend
-            const backendUrl = `${CONFIG.backend.baseUrl}/feed/agent/${agent.id}`;
-            
+            const backendUrl = `${CONFIG.backend.baseUrl}`; // A URL base já inclui '/extension'
+
             const payload = {
-                content: content,
+                // Mude 'content' para 'text' conforme exigido pelo backend
+                text: content,
+                // Adicione agent_id aqui, pois o backend espera no corpo da requisição
+                agent_id: agent.id,
                 timestamp: new Date().toISOString(),
                 source: 'chrome_extension',
-                agent: agent,
+                // Remova o objeto 'agent' se o backend precisar apenas de agent_id e text
                 contentLength: content.length
             };
 
@@ -231,7 +239,7 @@ class WebScraperExtension {
             }
         } catch (error) {
             console.error('Erro ao enviar para backend:', error);
-            
+
             if (error.name === 'TypeError' && error.message.includes('fetch')) {
                 this.showStatus('error', `❌ Erro de conexão: Verifique se o backend está rodando em localhost:8000`);
             } else {
@@ -259,7 +267,7 @@ class WebScraperExtension {
         this.statusDiv.className = `status ${type}`;
         this.statusDiv.innerHTML = message;
         this.statusDiv.classList.remove('hidden');
-        
+
         // Auto-ocultar status de sucesso após 3 segundos
         if (type === 'success') {
             setTimeout(() => {
@@ -286,9 +294,9 @@ class WebScraperExtension {
 // Inicializar a extensão quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', () => {
     const extension = new WebScraperExtension();
-    
+
     // Adicionar método global para desenvolvimento/debug
     window.scraperExtension = extension;
-    
+
     console.log('WebScraper Extension carregada com sucesso!');
 });

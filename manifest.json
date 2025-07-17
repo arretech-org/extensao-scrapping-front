@@ -1,38 +1,40 @@
 {
-  "manifest_version": 3,
-  "name": "Legaltech Extension",
-  "version": "1.0.0",
-  "description": "Legaltech Extension",
-  "author": "Legaltech",
-  
-  "permissions": [
-    "activeTab",
-    "scripting",
-    "tabs"
-  ],
-  
-  "host_permissions": [
-    "http://localhost:8000/*",
-    "<all_urls>"
-  ],
-  
-  "action": {
-    "default_popup": "index.html",
-    "default_title": "Legaltech Extension"
-  },
-  
-  "background": {
-    "service_worker": "background.js"
-  },
-  
-  "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
-  },
-  
-  "web_accessible_resources": [
-    {
-      "resources": ["index.html", "index.css", "index.js"],
-      "matches": ["<all_urls>"]
-    }
-  ]
+    "manifest_version": 3,
+    "name": "Legaltech Extension",
+    "version": "1.0.0",
+    "description": "Legaltech Extension",
+    "author": "Legaltech",
+
+    "permissions": [
+        "activeTab",
+        "scripting",
+        "tabs",
+        "cookies"
+    ],
+
+    "host_permissions": [
+        "http://localhost:8000/*",
+        "<all_urls>",
+        "https://app.juridtech.com.br/*"
+    ],
+
+    "action": {
+        "default_popup": "index.html",
+        "default_title": "Legaltech Extension"
+    },
+
+    "background": {
+        "service_worker": "background.js"
+    },
+
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'"
+    },
+
+    "web_accessible_resources": [
+        {
+            "resources": ["index.html", "index.css", "index.js"],
+            "matches": ["<all_urls>"]
+        }
+    ]
 }

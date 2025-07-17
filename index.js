@@ -1,14 +1,14 @@
 const CONFIG = {
-  // Configurações do Backend
-  backend: {
-    baseUrl: 'https://app.juridtech.com.br/api/admin/agents/feed/extension',
-  }
+    // Configurações do Backend
+    backend: {
+        baseUrl: 'https://app.juridtech.com.br/api/admin/agents/feed/extension',
+        agentsListUrl: 'https://app.juridtech.com.br/api/agents',
+        backendDomain: 'app.juridtech.com.br'
+    }
 }
-
 
 // Função de extração de conteúdo que será injetada na página
 function extractPageContent() {
-    // Função que será executada no contexto da página
     const removeUnwantedElements = () => {
         const unwantedSelectors = [
             'script', 'style', 'nav', 'header', 'footer',
@@ -55,8 +55,8 @@ function extractPageContent() {
     const extractMetadata = () => {
         const getMetaContent = (name) => {
             return document.querySelector(`meta[name="${name}"]`)?.content ||
-                   document.querySelector(`meta[property="${name}"]`)?.content ||
-                   document.querySelector(`meta[property="og:${name}"]`)?.content || '';
+                document.querySelector(`meta[property="${name}"]`)?.content ||
+                document.querySelector(`meta[property="og:${name}"]`)?.content || '';
         };
 
         return {
@@ -129,13 +129,10 @@ class WebScraperExtension {
         this.statusDiv = document.getElementById('statusDiv');
         this.charCount = document.getElementById('charCount');
 
-        // Mapeamento dos agentes
-        this.agents = {
-            '1': { id: 1, name: 'trabalhista', displayName: 'Trabalhista' },
-            '2': { id: 2, name: 'civel', displayName: 'Cível' }
-        };
+        this.agents = {};
 
         this.initializeEventListeners();
+        this.loadAgentsIntoSelect();
     }
 
     initializeEventListeners() {
@@ -145,24 +142,105 @@ class WebScraperExtension {
         this.agentSelect.addEventListener('change', () => this.enableActionButtons());
     }
 
+    // Função auxiliar para obter o token do cookie
+    async getAuthToken() {
+        try {
+            const cookie = await new Promise(resolve => {
+                chrome.cookies.get({ url: `https://${CONFIG.backend.backendDomain}`, name: 'token' },
+                    function(cookie) {
+                        resolve(cookie);
+                    }
+                );
+            });
+            return cookie ? cookie.value : null;
+        } catch (e) {
+            console.error("Erro ao obter cookie:", e);
+            return null;
+        }
+    }
+
+    async fetchAgents() {
+        this.showStatus('loading', '<span class="spinner"></span>Carregando agentes...');
+        this.agentSelect.disabled = true; // Desabilita enquanto carrega
+
+        try {
+            const token = await this.getAuthToken();
+
+            let headers = {
+                'Accept': 'application/json'
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+                console.log('Token de autenticação encontrado e adicionado aos cabeçalhos para listar agentes.');
+            } else {
+                console.warn('Token de autenticação não encontrado nos cookies. Não será possível carregar os agentes.');
+                this.showStatus('error', '❌ Usuário não autenticado. Faça login na plataforma para carregar os agentes.');
+                return []; // Retorna array vazio se não houver token
+            }
+
+            const response = await fetch(CONFIG.backend.agentsListUrl, {
+                method: 'GET',
+                headers: headers
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                return data.agents;
+            } else if (response.status === 401 || response.status === 403) {
+                this.showStatus('error', '❌ Não autorizado. Verifique se você está logado na plataforma.');
+                throw new Error(`Autenticação falhou: ${response.statusText}`);
+            } else {
+                const errorText = await response.text();
+                throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+            }
+        } catch (error) {
+            console.error('Erro ao buscar agentes:', error);
+            this.showStatus('error', '❌ Erro ao carregar agentes: ' + error.message);
+            return [];
+        } finally {
+            // Habilita o select após a tentativa de carregamento
+            this.agentSelect.disabled = false;
+        }
+    }
+
+    async loadAgentsIntoSelect() {
+        const agentsData = await this.fetchAgents();
+        if (agentsData.length > 0) {
+            this.agentSelect.innerHTML = '<option value="">Selecione um agente</option>'; // Opção padrão
+            this.agents = {}; // Limpa o objeto agents antes de popular
+
+            agentsData.forEach(agent => {
+                this.agents[agent.id] = { id: agent.id, name: agent.name, displayName: agent.name };
+                const option = document.createElement('option');
+                option.value = agent.id;
+                option.textContent = agent.name.charAt(0).toUpperCase() + agent.name.slice(1);
+                this.agentSelect.appendChild(option);
+            });
+            this.showStatus('success', '✅ Agentes carregados com sucesso!');
+        } else {
+            // Garante que o select esteja limpo e com a opção padrão se não houver agentes
+            this.agentSelect.innerHTML = '<option value="">Não foi possível carregar agentes</option>';
+            // A mensagem de erro já foi setada em fetchAgents
+            this.enableActionButtons();
+        }
+    }
+
     async performScraping() {
         this.showStatus('loading', '<span class="spinner"></span>Extraindo conteúdo da página...');
         this.scrapeButton.disabled = true;
 
         try {
-            // Verificar se estamos no contexto correto
             if (typeof chrome === 'undefined' || !chrome.tabs) {
                 throw new Error('API do Chrome não disponível. Execute como extensão.');
             }
 
-            // Obter a aba ativa
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
             if (!tab) {
                 throw new Error('Nenhuma aba ativa encontrada.');
             }
 
-            // Executar script de scraping na página
             const results = await chrome.scripting.executeScript({
                 target: { tabId: tab.id },
                 function: extractPageContent
@@ -195,9 +273,7 @@ class WebScraperExtension {
             return;
         }
 
-        const agent = Object.entries(this.agents)
-            .filter(([key, value]) => key === this.agentSelect.value)
-            .map(([key, value]) => value)[0];
+        const agent = this.agents[this.agentSelect.value];
 
         if (!agent) {
             this.showStatus('error', '❌ Selecione um agente válido!');
@@ -207,32 +283,43 @@ class WebScraperExtension {
         this.showStatus('loading', `<span class="spinner"></span>Enviando...`);
 
         try {
-            // URL do backend
-            const backendUrl = `${CONFIG.backend.baseUrl}`; // A URL base já inclui '/extension'
+            const token = await this.getAuthToken();
+
+            let headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+                console.log('Token de autenticação encontrado e adicionado aos cabeçalhos para envio de conteúdo.');
+            } else {
+                this.showStatus('error', '❌ Usuário não autenticado. Faça login na plataforma para enviar conteúdo.');
+                return; // Impede o envio se não houver token
+            }
+
+            const backendUrl = `${CONFIG.backend.baseUrl}`;
 
             const payload = {
-                // Mude 'content' para 'text' conforme exigido pelo backend
                 text: content,
-                // Adicione agent_id aqui, pois o backend espera no corpo da requisição
                 agent_id: agent.id,
                 timestamp: new Date().toISOString(),
                 source: 'chrome_extension',
-                // Remova o objeto 'agent' se o backend precisar apenas de agent_id e text
                 contentLength: content.length
             };
 
             const response = await fetch(backendUrl, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
+                headers: headers,
                 body: JSON.stringify(payload)
             });
 
             if (response.ok) {
                 const responseData = await response.json();
-                this.showStatus('sent', `✅ Conteúdo enviado para ${agent.name} com sucesso!`);
+                this.showStatus('sent', `✅ Conteúdo enviado para ${agent.displayName} com sucesso!`);
+            } else if (response.status === 401 || response.status === 403) {
+                this.showStatus('error', '❌ Não autorizado. Verifique se você está logado na plataforma.');
+                throw new Error(`Autenticação falhou: ${response.statusText}`);
             } else {
                 const errorText = await response.text();
                 throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
@@ -241,20 +328,20 @@ class WebScraperExtension {
             console.error('Erro ao enviar para backend:', error);
 
             if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                this.showStatus('error', `❌ Erro de conexão: Verifique se o backend está rodando em localhost:8000`);
+                this.showStatus('error', `❌ Erro de conexão: Verifique se o backend está rodando em localhost:8000 ou se a URL está correta.`);
             } else {
-                this.showStatus('error', `❌ Erro ao enviar para ${buttonText}: ${error.message}`);
+                this.showStatus('error', `❌ Erro ao enviar para o backend: ${error.message}`);
             }
         } finally {
-            // Reabilitar botões
             this.enableActionButtons();
         }
     }
 
     enableActionButtons() {
         const hasContent = this.resultTextarea.value.trim().length > 0;
-        this.agentSelect.disabled = !hasContent;
-        this.sendButton.disabled = !this.agentSelect.value;
+        this.agentSelect.disabled = Object.keys(this.agents).length === 0;
+        // O botão de envio só é habilitado se houver conteúdo E um agente selecionado
+        this.sendButton.disabled = !hasContent || !this.agentSelect.value || Object.keys(this.agents).length === 0;
     }
 
     updateCharCount() {
@@ -268,12 +355,9 @@ class WebScraperExtension {
         this.statusDiv.innerHTML = message;
         this.statusDiv.classList.remove('hidden');
 
-        // Auto-ocultar status de sucesso após 3 segundos
-        if (type === 'success') {
+        if (type === 'success' || type === 'sent') {
             setTimeout(() => {
-                if (this.statusDiv.classList.contains('success')) {
-                    this.statusDiv.classList.add('hidden');
-                }
+                this.statusDiv.classList.add('hidden');
             }, 5000);
         }
 
@@ -281,22 +365,13 @@ class WebScraperExtension {
             this.resultTextarea.setAttribute('readonly', 'readonly');
             this.resultTextarea.value = '';
             this.updateCharCount();
-            setTimeout(() => {
-                if (this.statusDiv.classList.contains('sent')) {
-                    console.log('Conteúdo enviado com sucesso!');
-                    this.statusDiv.classList.add('hidden');
-                }
-            }, 5000);
+            console.log('Conteúdo enviado com sucesso!');
         }
     }
 }
 
-// Inicializar a extensão quando o DOM estiver carregado
 document.addEventListener('DOMContentLoaded', () => {
     const extension = new WebScraperExtension();
-
-    // Adicionar método global para desenvolvimento/debug
     window.scraperExtension = extension;
-
     console.log('WebScraper Extension carregada com sucesso!');
 });

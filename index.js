@@ -1,5 +1,4 @@
 const CONFIG = {
-    // Configurações do Backend
     backend: {
         baseUrl: 'https://app.juridtech.com.br/api/admin/agents/feed/extension',
         agentsListUrl: 'https://app.juridtech.com.br/api/agents',
@@ -91,15 +90,13 @@ function extractPageContent() {
         }
     };
 
-    // Remover elementos indesejados
+
     removeUnwantedElements();
 
-    // Extrair conteúdo
     const textContent = extractTextContent();
     const metadata = extractMetadata();
     const structuredData = extractStructuredData();
 
-    // Formar resultado estruturado
     let result = `=== METADADOS ===
 Título: ${metadata.title}
 URL: ${metadata.url}
@@ -144,10 +141,6 @@ class WebScraperExtension {
         this.agentSelect.addEventListener('change', () => this.enableActionButtons());
     }
 
-    /**
-     * Inicializa o estado da extensão: carrega o token de autenticação e os agentes.
-     * Garante que as operações assíncronas sejam sequenciais.
-     */
     async initExtensionState() {
         this.showStatus('loading', '<span class="spinner"></span>Iniciando extensão...');
         this.scrapeButton.disabled = true;
@@ -179,8 +172,8 @@ class WebScraperExtension {
      */
     decodeJwt(token) {
         try {
-            const base64Url = token.split('.')[1]; // Pega a parte do payload
-            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/'); // Converte Base64Url para Base64 padrão
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
             const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
                 return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
             }).join(''));
@@ -191,10 +184,6 @@ class WebScraperExtension {
         }
     }
 
-    /**
-     * Obtém o token de autenticação dos cookies, armazena em `this.authToken`
-     * e extrai as roles para `this.userRoles`.
-     */
     async loadAuthToken() {
         try {
             const cookie = await new Promise(resolve => {
@@ -235,7 +224,7 @@ class WebScraperExtension {
 
     /**
      * Verifica se o usuário possui a role 'admin'.
-     * @returns {boolean} True se o usuário tiver a role 'admin', false caso contrário.
+     * @returns {boolean}
      */
     hasAdminRole() {
         return this.userRoles.includes('admin');
@@ -280,7 +269,7 @@ class WebScraperExtension {
             }
         } catch (error) {
             console.error('Erro ao buscar agentes:', error);
-            this.showStatus('error', '❌ Erro ao carregar agentes: ' + error.message);
+            this.showStatus('error', '❌ Erro ao carregar agentes.');
             return [];
         } finally {
             this.agentSelect.disabled = false;

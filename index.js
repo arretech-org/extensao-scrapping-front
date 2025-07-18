@@ -1,5 +1,4 @@
 const CONFIG = {
-    // Configurações do Backend
     backend: {
         baseUrl: 'https://app.juridtech.com.br/api/admin/agents/feed/extension',
         agentsListUrl: 'https://app.juridtech.com.br/api/agents',
@@ -91,15 +90,13 @@ function extractPageContent() {
         }
     };
 
-    // Remover elementos indesejados
+
     removeUnwantedElements();
 
-    // Extrair conteúdo
     const textContent = extractTextContent();
     const metadata = extractMetadata();
     const structuredData = extractStructuredData();
 
-    // Formar resultado estruturado
     let result = `=== METADADOS ===
 Título: ${metadata.title}
 URL: ${metadata.url}
@@ -130,9 +127,11 @@ class WebScraperExtension {
         this.charCount = document.getElementById('charCount');
 
         this.agents = {};
+        this.authToken = null;
+        this.userRoles = [];
 
         this.initializeEventListeners();
-        this.loadAgentsIntoSelect();
+        this.initExtensionState();
     }
 
     initializeEventListeners() {
@@ -142,29 +141,101 @@ class WebScraperExtension {
         this.agentSelect.addEventListener('change', () => this.enableActionButtons());
     }
 
-    // Função auxiliar para obter o token do cookie
-    async getAuthToken() {
+    async initExtensionState() {
+        this.showStatus('loading', '<span class="spinner"></span>Iniciando extensão...');
+        this.scrapeButton.disabled = true;
+        this.sendButton.disabled = true;
+        this.agentSelect.disabled = true;
+
+        await this.loadAuthToken();
+        await this.loadAgentsIntoSelect();
+        this.enableActionButtons();
+
+        this.scrapeButton.disabled = false;
+
+        // Mensagens de status mais detalhadas
+        if (!this.authToken) {
+            this.showStatus('error', '❌ Usuário não autenticado. Faça login na plataforma para usar a extensão.');
+        } else if (Object.keys(this.agents).length === 0) {
+            this.showStatus('error', '❌ Não foi possível carregar agentes. Verifique a conexão ou tente novamente.');
+        } else if (!this.hasAdminRole()) { // <-- Verifica a role aqui
+            this.showStatus('warning', '⚠️ Você não tem permissão para enviar o processamento.');
+        } else {
+            this.showStatus('success', '✅ Extensão pronta!');
+        }
+    }
+
+    /**
+     * Decodifica um JWT (parte do payload) e retorna o JSON.
+     * @param {string} token
+     * @returns {object|null}
+     */
+    decodeJwt(token) {
         try {
-            const cookie = await new Promise(resolve => {
-                chrome.cookies.get({ url: `https://${CONFIG.backend.backendDomain}`, name: 'token' },
-                    function(cookie) {
-                        resolve(cookie);
-                    }
-                );
-            });
-            return cookie ? cookie.value : null;
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
         } catch (e) {
-            console.error("Erro ao obter cookie:", e);
+            console.error("Erro ao decodificar JWT:", e);
             return null;
         }
     }
 
+    async loadAuthToken() {
+        try {
+            const cookie = await new Promise(resolve => {
+                const timeoutId = setTimeout(() => {
+                    console.warn('Timeout ao tentar obter o cookie "token".');
+                    resolve(null);
+                }, 2000); // Timeout de 2 segundos para o cookie
+
+                chrome.cookies.get({ url: `https://${CONFIG.backend.backendDomain}`, name: 'token' },
+                    function(c) {
+                        clearTimeout(timeoutId);
+                        resolve(c);
+                    }
+                );
+            });
+
+            this.authToken = cookie ? cookie.value : null;
+            this.userRoles = [];
+
+            if (this.authToken) {
+                console.log('Token de autenticação carregado em this.authToken.');
+                const decodedToken = this.decodeJwt(this.authToken);
+                if (decodedToken && decodedToken.roles && Array.isArray(decodedToken.roles)) {
+                    this.userRoles = decodedToken.roles;
+                    console.log('Roles do usuário:', this.userRoles);
+                } else {
+                    console.warn('Roles não encontradas ou inválidas no token.');
+                }
+            } else {
+                console.warn('Token de autenticação não encontrado nos cookies.');
+            }
+        } catch (e) {
+            console.error("Erro ao obter cookie ou decodificar token:", e);
+            this.authToken = null;
+            this.userRoles = [];
+        }
+    }
+
+    /**
+     * Verifica se o usuário possui a role 'admin'.
+     * @returns {boolean}
+     */
+    hasAdminRole() {
+        return this.userRoles.includes('admin');
+    }
+
     async fetchAgents() {
         this.showStatus('loading', '<span class="spinner"></span>Carregando agentes...');
-        this.agentSelect.disabled = true; // Desabilita enquanto carrega
+        this.agentSelect.disabled = true;
 
         try {
-            const token = await this.getAuthToken();
+            const token = this.authToken;
 
             let headers = {
                 'Accept': 'application/json'
@@ -172,11 +243,10 @@ class WebScraperExtension {
 
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
-                console.log('Token de autenticação encontrado e adicionado aos cabeçalhos para listar agentes.');
+                console.log('Token de autenticação usado para listar agentes.');
             } else {
-                console.warn('Token de autenticação não encontrado nos cookies. Não será possível carregar os agentes.');
                 this.showStatus('error', '❌ Usuário não autenticado. Faça login na plataforma para carregar os agentes.');
-                return []; // Retorna array vazio se não houver token
+                return [];
             }
 
             const response = await fetch(CONFIG.backend.agentsListUrl, {
@@ -189,17 +259,19 @@ class WebScraperExtension {
                 return data.agents;
             } else if (response.status === 401 || response.status === 403) {
                 this.showStatus('error', '❌ Não autorizado. Verifique se você está logado na plataforma.');
-                throw new Error(`Autenticação falhou: ${response.statusText}`);
+                this.authToken = null;
+                this.userRoles = []; // Limpa as roles se a autenticação falhar
+                this.enableActionButtons();
+                return [];
             } else {
                 const errorText = await response.text();
                 throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
             }
         } catch (error) {
             console.error('Erro ao buscar agentes:', error);
-            this.showStatus('error', '❌ Erro ao carregar agentes: ' + error.message);
+            this.showStatus('error', '❌ Erro ao carregar agentes.');
             return [];
         } finally {
-            // Habilita o select após a tentativa de carregamento
             this.agentSelect.disabled = false;
         }
     }
@@ -207,8 +279,8 @@ class WebScraperExtension {
     async loadAgentsIntoSelect() {
         const agentsData = await this.fetchAgents();
         if (agentsData.length > 0) {
-            this.agentSelect.innerHTML = '<option value="">Selecione um agente</option>'; // Opção padrão
-            this.agents = {}; // Limpa o objeto agents antes de popular
+            this.agentSelect.innerHTML = '<option value="">Selecione um agente</option>';
+            this.agents = {};
 
             agentsData.forEach(agent => {
                 this.agents[agent.id] = { id: agent.id, name: agent.name, displayName: agent.name };
@@ -219,9 +291,7 @@ class WebScraperExtension {
             });
             this.showStatus('success', '✅ Agentes carregados com sucesso!');
         } else {
-            // Garante que o select esteja limpo e com a opção padrão se não houver agentes
             this.agentSelect.innerHTML = '<option value="">Não foi possível carregar agentes</option>';
-            // A mensagem de erro já foi setada em fetchAgents
             this.enableActionButtons();
         }
     }
@@ -280,10 +350,19 @@ class WebScraperExtension {
             return;
         }
 
+
+        if (!this.hasAdminRole()) {
+            this.showStatus('error', '❌ Você não tem permissão para enviar o processamento. Apenas usuários "admin" podem fazê-lo.');
+            return;
+        }
+
         this.showStatus('loading', `<span class="spinner"></span>Enviando...`);
+        this.sendButton.disabled = true;
 
         try {
-            const token = await this.getAuthToken();
+            // Revalida o token antes do envio final
+            await this.loadAuthToken();
+            const token = this.authToken;
 
             let headers = {
                 'Content-Type': 'application/json',
@@ -292,10 +371,10 @@ class WebScraperExtension {
 
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
-                console.log('Token de autenticação encontrado e adicionado aos cabeçalhos para envio de conteúdo.');
+                console.log('Token de autenticação usado para envio de conteúdo.');
             } else {
                 this.showStatus('error', '❌ Usuário não autenticado. Faça login na plataforma para enviar conteúdo.');
-                return; // Impede o envio se não houver token
+                return;
             }
 
             const backendUrl = `${CONFIG.backend.baseUrl}`;
@@ -318,7 +397,10 @@ class WebScraperExtension {
                 const responseData = await response.json();
                 this.showStatus('sent', `✅ Conteúdo enviado para ${agent.displayName} com sucesso!`);
             } else if (response.status === 401 || response.status === 403) {
-                this.showStatus('error', '❌ Não autorizado. Verifique se você está logado na plataforma.');
+                this.showStatus('error', '❌ Não autorizado. Verifique se você está logado na plataforma e possui as permissões necessárias.');
+                this.authToken = null;
+                this.userRoles = [];
+                this.enableActionButtons();
                 throw new Error(`Autenticação falhou: ${response.statusText}`);
             } else {
                 const errorText = await response.text();
@@ -328,20 +410,32 @@ class WebScraperExtension {
             console.error('Erro ao enviar para backend:', error);
 
             if (error.name === 'TypeError' && error.message.includes('fetch')) {
-                this.showStatus('error', `❌ Erro de conexão: Verifique se o backend está rodando em localhost:8000 ou se a URL está correta.`);
+                this.showStatus('error', `❌ Erro de conexão.`);
             } else {
-                this.showStatus('error', `❌ Erro ao enviar para o backend: ${error.message}`);
+                this.showStatus('error', `❌ Erro ao enviar processamento.`);
             }
         } finally {
+            this.sendButton.disabled = false;
             this.enableActionButtons();
         }
     }
 
     enableActionButtons() {
         const hasContent = this.resultTextarea.value.trim().length > 0;
-        this.agentSelect.disabled = Object.keys(this.agents).length === 0;
-        // O botão de envio só é habilitado se houver conteúdo E um agente selecionado
-        this.sendButton.disabled = !hasContent || !this.agentSelect.value || Object.keys(this.agents).length === 0;
+        const hasAgents = Object.keys(this.agents).length > 0;
+        const agentSelected = this.agentSelect.value !== '';
+        const isAdmin = this.hasAdminRole();
+
+        this.sendButton.disabled = !hasContent || !hasAgents || !agentSelected || !this.authToken || !isAdmin;
+
+        this.agentSelect.disabled = !hasAgents || !this.authToken;
+
+        if (this.authToken && !isAdmin) {
+            this.sendButton.disabled = true;
+            this.sendButton.title = 'Apenas usuários admin podem enviar para processamento.';
+        } else {
+            this.sendButton.title = '';
+        }
     }
 
     updateCharCount() {
@@ -358,7 +452,7 @@ class WebScraperExtension {
         if (type === 'success' || type === 'sent') {
             setTimeout(() => {
                 this.statusDiv.classList.add('hidden');
-            }, 5000);
+            }, 15000);
         }
 
         if (type === 'sent') {

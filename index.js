@@ -166,7 +166,7 @@ class WebScraperExtension {
         } else if (Object.keys(this.agents).length === 0) {
             this.showStatus('error', '❌ Não foi possível carregar agentes. Verifique a conexão ou tente novamente.');
         } else if (!this.hasAdminRole()) { // <-- Verifica a role aqui
-            this.showStatus('warning', '⚠️ Você não tem permissão de "admin" para enviar o processamento.');
+            this.showStatus('warning', '⚠️ Você não tem permissão para enviar o processamento.');
         } else {
             this.showStatus('success', '✅ Extensão pronta!');
         }
@@ -463,7 +463,7 @@ class WebScraperExtension {
         if (type === 'success' || type === 'sent') {
             setTimeout(() => {
                 this.statusDiv.classList.add('hidden');
-            }, 5000);
+            }, 15000);
         }
 
         if (type === 'sent') {
